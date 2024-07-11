@@ -1,88 +1,112 @@
-// Concatenating two columns of a table in select
-
-tab:([]firstname:`John`Jia`Jai`Jac;lastname:`James`Jain`Jadeja`Jones;age:1+4?30)
-
-// a) Two columns as lists
-// q)
-// name
-// ----------
-// John James
-// Jia  Jain
-// Jai  Jadeja
-// Jac  Jones
-
-ans:
-select name:(firstname,'lastname) from tab
-
-
-// b) Two columns as String
-// Join them as string (Citadel)
-// fullname     age
-// ----------------
-// "John James" 13
-// "Jia Jain"   9
-// "Jai Jadeja" 11
-// "Jac Jones"  2
-
-
-ans:
-select fullname: ((string firstname),'" " ,'(string lastname)), age from tab
-
-
-// c) Two columns as String
-// A mixed list is formed if the columns are of different type. If you cast the columns to string before each-both join, a concatenated string is formed. You can also insert a character using ,'.
-// col
+// Given a table:
+q)t:([]d1:1 2 3 4 5; d2:10 20 30 40 50; func:`add`multiply`add`add`multiply)
+// d1 d2 func
 // --------------
-// "JohnJames/19"
-// "JiaJain/24"
-// "JaiJadeja/25"
-// "JacJones/19
+// 1  10 add
+// 2  20 multiply
+// 3  30 add
+// 4  40 add
+// 5  50 multiply
 
+
+// a) Compute col res where func is applied to d1 and d2, assuming all functions take 2 args
+// i.e:
+// ([] d1:1 2 3 4 5; d2:10 20 30 40 50; func:`add`multiply`add`add`multiply; res:11 40 33 44 250)
+// d1 d2 func     res
+// ------------------
+// 1  10 add      11
+// 2  20 multiply 40
+// 3  30 add      33
+// 4  40 add      44
+// 5  50 multiply 250
 
 // ans:
-select col:((string firstname),'(string lastname),'"/",'(string age)) from tab
-// If you need multi character delimiters, use sv. 
-// A nice advantage of this method is you don’t have to individually convert each column to string.
+// Make a dictionary for `add`multiply as these two aren't defined yet
+dict:`add`multiply!(+;*)
 
-// d)
-// col
-// -----------------
-// "John--James--19"
-// "Jia--Jain--24"
-// "Jai--Jadeja--25"
-// "Jac--Jones--19"
+// This is wrong because you want to use () instead of []
+update res:(dict[func]).'[d1;d2] from t
+
+// t[`d1] will always have values in list
+// since we are applying each column values need to use flip to make d1 & d2 into lists
+update res:(dict[func]).' flip (d1;d2) from t
+
+b) Add2 & add to cols d1 & d2, try using function below and notation
+q)add2:{x+2}; add:{$[x>10;x+2;x+3]}; dcols:`d1`d2
+
 
 ans:
-select col:({"--" sv x} each string (firstname,'lastname,'age)) from tab
+q)t[dcols]:add2 t[dcols]
+
+// Using amend
+q)@[t;dcols;add2]
 
 
-// e) Make the table like the below
-// firstname lastname age Dear
-// ----------------------------------
-// John      James    13  "Dear John"
-// Jia       Jain     9   "Dear Jia"
-// Jai       Jadeja   11  "Dear Jai"
-// Jac       Jones    2   "Dear Jac"
-
-// ans:
-// To add a string as prefix and postfix to a column, you can use /:(each right) and \:(each left) respectively.
-update Dear:("Dear ",/: string firstname) from `tab
+// Since add does not support vectors straightaway
+q)(add'') t[dcols]
 
 
-// f) Split a column into two (dear & name)
-// q)
-// dear name
-// ---------
-// Dear John
-// Dear Jia
-// Dear Jai
-// Dear Jac
+c) Chage the table like the below
+func    | d1    d2
+--------| --------------
+add     | 1 3 4 10 30 40
+multiply| 2 5   20 50
 
 
-// ans:
-// Using select
-select dear:"S"$4#'Dear, name:"S"$5_'Dear from tab
+ans:
+q)select d1,d2 by func from t
 
-// Using exec
-flip exec `dear`name!"SS"$(5#;4_)@/:\: Dear from tab
-flip exec `dear`name!"SS"$(#[5];_[4])@/:\: Dear from tab
+
+d) Change columns names from `d1`d2 -> `price`size
+
+
+ans:
+//xcol for renaming
+q)t:`price`size xcol t
+
+
+
+
+e) Get accumulating weighted-average prices by func from a table, meaning taking account of not just the previous record but all previous records.
+
+q)
+price size func     avgPrice
+----------------------------
+1     10   add      10
+2     20   multiply 20
+3     30   add      25
+4     40   add      32.5
+5     50   multiply 41.42857
+
+
+ans:
+// Use sums to solve this question
+q)update avgPrice:(sums price*size)%sums price by func from t
+
+
+f) Combine multiple columns values into one column in kdb
+q)ccols:`price`size`func
+
+price size func     all_bid
+----------------------------------
+3     12   add      3 12 `add
+4     22   multiply 4 22 `multiply
+5     32   add      5 32 `add
+6     42   add      6 42 `add
+7     52   multiply 7 52 `multiply
+
+
+ans:
+// t[ccols] will give you a list so flip this to make it the same length
+q)update all_bid: flip t[ccols] from t
+
+// Use # (take) which on tables will return a subset of columns. 
+// As a table in kdb is simply a list of dicts, use value each on this table to get the values for each row:
+q)update all_bid:value each ccols#t from t
+
+// Use parse to determine functional form
+q)0N!parse"update All_bid:flip(Bid1px;Bid2px;Bid3px) from table";
+(!;`table;();0b;(,`All_bid)!,(+:;(enlist;`Bid1px;`Bid2px;`Bid3px)))
+
+// Replicate the functional form, swapping in your Bidcols list
+q)![table;();0b;(1#`All_bid)!enlist(flip;enlist,Bidcols)]

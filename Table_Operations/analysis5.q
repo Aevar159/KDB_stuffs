@@ -1,123 +1,115 @@
-/read csv
-avgprc:("SFFF";enlist",") 0: hsym `$getenv[`AX_WORKSPACE],"/Data/avgprc.csv"
+// Not mine, added this to just to study by myself
 
-/Average price of bought 
-avgPrcAnaly:update BotAvgPx:(sums prc*abs(trd))%sums abs(trd) from avgprc where tran=`Buy
-/Average price of sold
-avgPrcAnaly:update SoldAvgPx:(sums prc*abs(trd))%sums abs(trd) from avgPrcAnaly where tran=`Sell
-avgPrcAnaly:update BotAvgPx:0f, SoldAvgPx:0f from avgPrcAnaly where i=0
+csvPath:getenv[`AX_WORKSPACE],"/Data/trade.csv"
 
-// Altogether
-avgPrcAnaly:fills avgPrcAnaly
+quote: ("dstffff";enlist",") 0: hsym `$getenv[`AX_WORKSPACE],"/Data/quote.csv"
+trade: ("dstff";enlist",") 0:hsym `$getenv[`AX_WORKSPACE],"/Data/trade.csv"
 
-select from avg_buy where tran=`Buy
+dfd:.Q.fs[{("dstffff";enlist",")0:x}] hsym `$getenv[`AX_WORKSPACE],"/Data/quote.csv"
 
-/opening
-avgPrcAnaly:update avgpx:prc from avgPrcAnaly where tran=`open
-
-/when pos = 0
-avgPrcAnaly:update avgpx:0f from avgPrcAnaly where pos=0f
-
-/tran=`Buy & pos < 0
-/update avgpx:prev avgpx from trade /something like this
-/tran=`Sell & pos > 0
-
-
-/caculates when avgpx changes; (tran=`Buy & pos < 0) or (tran=`Sell & pos > 0)
-update avgpx:((prev avgpx)*abs(prev pos)+ prc * abs trd)% abs pos from trade where tran=`Buy, pos > 0f
-update avgpx:((prev avgpx)*abs(prev pos)+ prc * abs trd)% abs pos from trade where tran=`Sell, pos < 0f
+("dstff";enlist",") 0:hsym `$getenv[`AX_WORKSPACE],"/Data/trade.csv"
 
 
 
+\c 20 1000
+5#trade
+5#quote
 
-example:("SJFJFFFF";enlist",") 0: hsym `$getenv[`AX_WORKSPACE],"/Data/example.csv"
+count trade
+trade,'([]ticker:206357?`AAPL`MSFT`GOOG`TSLA)
+quote
 
+// count the tick data number in a day
+select count i by sym, date from trade
 
-/Average price of bought 
-example1:update BotAvgPx1:(sums Price*abs(FillQty))%sums abs(FillQty) from example where Trade=`Buy
-/Average price of sold
-example1:update SoldAvgPx1:(sums Price*abs(FillQty))%sums abs(FillQty) from example1 where Trade=`Sell
-example1:update BotAvgPx1:0f, SoldAvgPx1:0f from example1 where i=0
-example1:fills example1
+// calculate daily data first
+trade_ld: select volume:sum size, total_volume: sum size*price, close: last price by Stock:sym,date from trade
+trade_ld: update rtn: -1+close%prev close by Stock from trade_ld
 
-// example[`Price]*deltas example[`Position]
-
-example1:update Trade=`Buy,FillQty:200, Price:30f from example1 where Trade
-
-update Total_cost:(deltas Position)*Price from example1 where Trade=`Buy
-
-exec (deltas Position)*Price from example1 where Trade=`Buy
-update dfd:sums (FillQty * Price) by Trade from example1
-
-fd:(example[`Trade`FillQty`Price`Position]) / ,enlist 110110b
-ffd:flip fd
-
-fdd:();ct:0;tct:0;
-
-bdd:{[Trade;FillQty;Price;Position]
-    while[tct<6;
-        if[`Overnight~Trade[ct];fdd,:Price[ct]*FillQty[ct]];
-        if[`Overnight~Trade[ct-1];fdd,:fdd[ct-1]+Price[ct]*(Position[ct]-Position[ct-1])];
-        if[(Trade[ct-1] in `Buy`Sell)&(not Trade[ct]~Trade[ct-1]);fdd,:fdd[ct-1]];
-        if[(Trade[ct]~Trade[ct-1])&((0<Position[ct-1])&(0>Position[ct]));fdd,:Price[ct]*Position[ct]];
-        if[(`Sell~Trade[ct]) and (Trade[ct]~Trade[ct-1]) and ((0>Position[ct-1]) and (0>Position[ct])) and (not 0~Position[ct]);
-            fdd,:fdd[ct-1]+ -1 * Price[ct]*FillQty[ct]];
-//         if[-700~Position[ct];
-//             fdd,:fdd[ct-1]+ -1 * Price[ct]*FillQty[ct]];
-        if[0~Position[ct];fdd,:0f];
-    
-        tct+:1;
-        ct+:1;
-        ]
-    }
-
-bdd[fd[0];fd[1];fd[2];fd[3]]
-fdd
-example
+q1_1: select ADV:avg volume, ADTV: avg total_volume, Volatility: dev rtn by Stock from trade_ld
 
 
-q)r:1 1
-q)x:0
+// 5min data
+trade_5m: select close: last price by Stock:sym, date, 5 xbar time.minute from trade
+trade_5m: update rtn: -1+close%prev close by Stock from trade_5m;
 
-while[x<10;
-    if[1~x mod 2;r,:56];
-    if[0~x mod 2;r,:sum -2#r];
-    
-    x+:1]
+\c 30 1000
+select count i by Stock, date from trade_5m
 
-r
+// 5min volatility
+q1_2: select dev rtn *sqrt 50 by Stock from trade_5m
 
-while[x-:1;r,:sum -2#r]
+quote_1: update spread_bps: 10000*(ask-bid)%(ask+bid)% 2, qsize:(asize+bsize)%2 by Stock:sym from quote
 
-q)r
-1 1 2 3 5 8 13 21 34 55 89
+q1_3: select spread_bps:avg spread_bps, quote_size:avg qsize by Stock:sym from quote_1;
 
-3 mod 2
+q1: q1_1 pj q1_2 pj q1_3
 
-
-price:18.54 18.53 18.53 18.52 18.57 18.9 18.9 18.77 18.59 18.51 18.37
-
-{1_x}\[8;price]
-
-3#'{1_x}\[8;price]
-
-{1 rotate x}\[8;price]
-
-3#'{1 rotate x}\[8;price]5
-
-count price
-er:0
-r:1 1
+save `:result/q1.csv
 
 
-while[er<11;if[18.5>price[er];r,:price[er];er+:1]]
+////// Question 2
+
+// use 1min data and then upsampling
+trade_1m: select close: last price, volume:sum size by Stock:sym, 1 xbar time.minute, date from trade
+trade_1m: update rtn: -1+close%prev close by Stock from trade_1m
+
+// 1min volpct
+trade_1m: update volpct: volume % sum volume by date from trade_1m
+trade_1m
+
+\c 30 1000
+select count i by Stock, date from trade_1m
+
+/ two methods for calculating 5min volatility
+/method 1
+show vol5: select volatility5: dev rtn * sqrt 240 by date, Stock, 5 xbar minute from trade_1m
+
+/method 2
+show vol5: select avg volatility5 by Stock, minute from vol5
+
+show q2_1: vol5
+
+q2_2: vol5
+
+q2_2: update volpct: sum volpct by 5 xbar minute, date from trade_1m
+
+show q2_2: select avg volpct by minute from q2_2
+
+show q2_3: select spread:avg spread_bps, qsize: avg qsize by 5 xbar time.minute from quote_1 where sym = `$"600030.SHSE"
+
+q2: q2_1 lj q2_3 uj q2_2
+q2
+
+save `:result/q2.csv
 
 
-bddf[price]
-        
-        
-        
-        
-        
-        
-        
+// Open High Low Close
+ohlc: select open:first price, high:max price, low:min price, close:last price by sym, date, 1 xbar time.minute from trade
+
+// Volume Weighted Average Price where price > avg price
+vwap: select vwap: size  wavg price by sym, date, time.minute from trade where price > (avg;price) fby sym
+
+
+
+
+// Calculate moving averages
+shortMA: mavg[5; trade`price]
+longMA: mavg[20; trade`price]
+
+// Generate buy/sell signals
+signals:select from (update shortMA:mavg[5; price], longMA:mavg[20; price] from trade) where shortMA > longMA
+// Masking using vector conditional, much more efficient as everything is done via vector
+signals: update signal:({?[0=x;-1;x]} (>':) price) from signals
+// Conditional can be used as well but has to use each so not much efficient
+signals: update signal:({$[0=x;-1;1]} each (>':) price) from signals
+
+// Backtest strategy
+trades: select from signals where signal=1 or signal=-1
+trades: update pnl: price - prev price from trade
+
+update pnl: price - prev price from signals
+
+// Calculate performance metrics
+cumulativePNL: sums trades`pnl
+sharpeRatio: avg trades`pnl % dev trades`pnl

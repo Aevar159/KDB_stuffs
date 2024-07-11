@@ -1,113 +1,77 @@
-csvPath:getenv[`AX_WORKSPACE],"/Data/trade.csv"
+// Generate a table of count 100 with ticker, date, time, price, size
 
-quote: ("dstffff";enlist",") 0: hsym `$getenv[`AX_WORKSPACE],"/Data/quote.csv"
-trade: ("dstff";enlist",") 0:hsym `$getenv[`AX_WORKSPACE],"/Data/trade.csv"
-
-dfd:.Q.fs[{("dstffff";enlist",")0:x}] hsym `$getenv[`AX_WORKSPACE],"/Data/quote.csv"
-
-("dstff";enlist",") 0:hsym `$getenv[`AX_WORKSPACE],"/Data/trade.csv"
+// a) ans:
+tab:([]ticker:100?`AAPL`MSFT`GOOG;date:100?.z.D+til 10;time:100?.z.T;price:100?100f;size:100?150i)
 
 
+// b) Calculate VWAP per ticker, with aggregation over 10 minutes period, where each exceeds avg price for that ticker group.
 
-\c 20 1000
-5#trade
-5#quote
+// ans:
+select vwap: size wavg price by date from tab
+select ticker by date, 60 xbar `time$time.minute from tab where date.month = `month$.z.D
+select from tab where size < (avg;size) fby ticker
 
-count trade
-trade,'([]ticker:206357?`AAPL`MSFT`GOOG`TSLA)
-quote
+// Altogether
+select vwap: size wavg price by date, 60 xbar `time$time.minute from tab where date.month = `month$.z.D, size > (avg;size) fby ticker
 
-// count the tick data number in a day
-select count i by sym, date from trade
+// b) How can you write the following differently? 
 
-// calculate daily data first
-trade_ld: select volume:sum size, total_volume: sum size*price, close: last price by Stock:sym,date from trade
-trade_ld: update rtn: -1+close%prev close by Stock from trade_ld
-
-q1_1: select ADV:avg volume, ADTV: avg total_volume, Volatility: dev rtn by Stock from trade_ld
+select from tab where ticker in `AAPL`MSFT
 
 
-// 5min data
-trade_5m: select close: last price by Stock:sym, date, 5 xbar time.minute from trade
-trade_5m: update rtn: -1+close%prev close by Stock from trade_5m;
-
-\c 30 1000
-select count i by Stock, date from trade_5m
-
-// 5min volatility
-q1_2: select dev rtn *sqrt 50 by Stock from trade_5m
-
-quote_1: update spread_bps: 10000*(ask-bid)%(ask+bid)% 2, qsize:(asize+bsize)%2 by Stock:sym from quote
-
-q1_3: select spread_bps:avg spread_bps, quote_size:avg qsize by Stock:sym from quote_1;
-
-q1: q1_1 pj q1_2 pj q1_3
-
-save `:result/q1.csv
+// ans:
+select from tab where any ticker =/: `appl`msft
+raze {select from tab where ticker =x} each `msft`appl // projection; faster than using in
 
 
-////// Question 2
+// c) Create a column called venue on a ticker values and order the columns in a following way
+// ticker;venue;date;timeprice;size
 
-// use 1min data and then upsampling
-trade_1m: select close: last price, volume:sum size by Stock:sym, 1 xbar time.minute, date from trade
-trade_1m: update rtn: -1+close%prev close by Stock from trade_1m
-
-// 1min volpct
-trade_1m: update volpct: volume % sum volume by date from trade_1m
-trade_1m
-
-\c 30 1000
-select count i by Stock, date from trade_1m
-
-/ two methods for calculating 5min volatility
-/method 1
-show vol5: select volatility5: dev rtn * sqrt 240 by date, Stock, 5 xbar minute from trade_1m
-
-/method 2
-show vol5: select avg volatility5 by Stock, minute from vol5
-
-show q2_1: vol5
-
-q2_2: vol5
-
-q2_2: update volpct: sum volpct by 5 xbar minute, date from trade_1m
-
-show q2_2: select avg volpct by minute from q2_2
-
-show q2_3: select spread:avg spread_bps, qsize: avg qsize by 5 xbar time.minute from quote_1 where sym = `$"600030.SHSE"
-
-q2: q2_1 lj q2_3 uj q2_2
-q2
-
-save `:result/q2.csv
+// ticker  venue date       time         price     size
+// -------------------------------------------------
+// GOOG Z     2024.05.24 09:01:51.146 5.81007   139
+// AAPL OQ    2024.06.02 12:12:03.051 56.82217  34
+// MSFT N     2024.06.02 16:44:12.233 28.95719  148
 
 
-// Open High Low Close
-ohlc: select open:first price, high:max price, low:min price, close:last price by sym, date, 1 xbar time.minute from trade
-
-// Volume Weighted Average Price where price > avg price
-vwap: select vwap: size  wavg price by sym, date, time.minute from trade where price > (avg;price) fby sym
+ans:
+// xcols for reordering
+// xcol for renaming
+tab:`ticker`venue xcols update venue:(`AAPL`MSFT`GOOG!`OQ`N`Z)[ticker] from tab
 
 
 
+// d) Update the table with a new column, sym, which is [ticker].[venue] for each row, so we've got a unique ID indicating stock and venue:
+// AAPL.OQ
+// GOOOG.z,,,
 
-// Calculate moving averages
-shortMA: mavg[5; trade`price]
-longMA: mavg[20; trade`price]
 
-// Generate buy/sell signals
-signals:select from (update shortMA:mavg[5; price], longMA:mavg[20; price] from trade) where shortMA > longMA
-// Masking using vector conditional, much more efficient as everything is done via vector
-signals: update signal:({?[0=x;-1;x]} (>':) price) from signals
-// Conditional can be used as well but has to use each so not much efficient
-signals: update signal:({$[0=x;-1;1]} each (>':) price) from signals
+// ans:
+// Using .Q.dd which joins two symbols
+update sym:.Q.dd'[ticker;venue] from tab
 
-// Backtest strategy
-trades: select from signals where signal=1 or signal=-1
-trades: update pnl: price - prev price from trade
+// Using each left and right
+update sym:`$((string ticker),' ".",/:(string venue)) from tab
 
-update pnl: price - prev price from signals
 
-// Calculate performance metrics
-cumulativePNL: sums trades`pnl
-sharpeRatio: avg trades`pnl % dev trades`pnl
+// e) Return the rows that give maximum value of a trade per sym
+
+// ticker venue date       time         price    size
+// --------------------------------------------------
+// GOOG   Z     2024.05.28 10:59:00.065 99.07116 140
+// AAPL   OQ    2024.05.26 17:16:44.575 94.71555 136
+// MSFT   N     2024.06.02 13:19:22.549 96.14594 104
+ 
+
+// ans:
+//This gives the right answer but want to drop wvalue (price * size) column
+sd:(select from (update wvalue:(quantity*price) from t) where price = (max;price) fby ticker)
+
+// Since drop _ only takes multiple columns, add null value to use it 
+((),`wvalue) _ sd
+
+// Using delete
+delete wvalue from sd
+
+// Using amend
+.[sd;(); ((),`wvalue) _]

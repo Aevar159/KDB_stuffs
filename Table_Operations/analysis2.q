@@ -1,77 +1,88 @@
-// Generate a table of count 100 with ticker, date, time, price, size
+// Concatenating two columns of a table in select
 
-// a) ans:
-tab:([]ticker:100?`AAPL`MSFT`GOOG;date:100?.z.D+til 10;time:100?.z.T;price:100?100f;size:100?150i)
+tab:([]firstname:`John`Jia`Jai`Jac;lastname:`James`Jain`Jadeja`Jones;age:1+4?30)
 
+// a) Two columns as lists
+// q)
+// name
+// ----------
+// John James
+// Jia  Jain
+// Jai  Jadeja
+// Jac  Jones
 
-// b) Calculate VWAP per ticker, with aggregation over 10 minutes period, where each exceeds avg price for that ticker group.
-
-// ans:
-select vwap: size wavg price by date from tab
-select ticker by date, 60 xbar `time$time.minute from tab where date.month = `month$.z.D
-select from tab where size < (avg;size) fby ticker
-
-// Altogether
-select vwap: size wavg price by date, 60 xbar `time$time.minute from tab where date.month = `month$.z.D, size > (avg;size) fby ticker
-
-// b) How can you write the following differently? 
-
-select from tab where ticker in `AAPL`MSFT
+ans:
+select name:(firstname,'lastname) from tab
 
 
-// ans:
-select from tab where any ticker =/: `appl`msft
-raze {select from tab where ticker =x} each `msft`appl // projection; faster than using in
-
-
-// c) Create a column called venue on a ticker values and order the columns in a following way
-// ticker;venue;date;timeprice;size
-
-// ticker  venue date       time         price     size
-// -------------------------------------------------
-// GOOG Z     2024.05.24 09:01:51.146 5.81007   139
-// AAPL OQ    2024.06.02 12:12:03.051 56.82217  34
-// MSFT N     2024.06.02 16:44:12.233 28.95719  148
+// b) Two columns as String
+// Join them as string (Citadel)
+// fullname     age
+// ----------------
+// "John James" 13
+// "Jia Jain"   9
+// "Jai Jadeja" 11
+// "Jac Jones"  2
 
 
 ans:
-// xcols for reordering
-// xcol for renaming
-tab:`ticker`venue xcols update venue:(`AAPL`MSFT`GOOG!`OQ`N`Z)[ticker] from tab
+select fullname: ((string firstname),'" " ,'(string lastname)), age from tab
 
 
-
-// d) Update the table with a new column, sym, which is [ticker].[venue] for each row, so we've got a unique ID indicating stock and venue:
-// AAPL.OQ
-// GOOOG.z,,,
+// c) Two columns as String
+// A mixed list is formed if the columns are of different type. If you cast the columns to string before each-both join, a concatenated string is formed. You can also insert a character using ,'.
+// col
+// --------------
+// "JohnJames/19"
+// "JiaJain/24"
+// "JaiJadeja/25"
+// "JacJones/19
 
 
 // ans:
-// Using .Q.dd which joins two symbols
-update sym:.Q.dd'[ticker;venue] from tab
+select col:((string firstname),'(string lastname),'"/",'(string age)) from tab
+// If you need multi character delimiters, use sv. 
+// A nice advantage of this method is you don’t have to individually convert each column to string.
 
-// Using each left and right
-update sym:`$((string ticker),' ".",/:(string venue)) from tab
+// d)
+// col
+// -----------------
+// "John--James--19"
+// "Jia--Jain--24"
+// "Jai--Jadeja--25"
+// "Jac--Jones--19"
+
+ans:
+select col:({"--" sv x} each string (firstname,'lastname,'age)) from tab
 
 
-// e) Return the rows that give maximum value of a trade per sym
-
-// ticker venue date       time         price    size
-// --------------------------------------------------
-// GOOG   Z     2024.05.28 10:59:00.065 99.07116 140
-// AAPL   OQ    2024.05.26 17:16:44.575 94.71555 136
-// MSFT   N     2024.06.02 13:19:22.549 96.14594 104
- 
+// e) Make the table like the below
+// firstname lastname age Dear
+// ----------------------------------
+// John      James    13  "Dear John"
+// Jia       Jain     9   "Dear Jia"
+// Jai       Jadeja   11  "Dear Jai"
+// Jac       Jones    2   "Dear Jac"
 
 // ans:
-//This gives the right answer but want to drop wvalue (price * size) column
-sd:(select from (update wvalue:(quantity*price) from t) where price = (max;price) fby ticker)
+// To add a string as prefix and postfix to a column, you can use /:(each right) and \:(each left) respectively.
+update Dear:("Dear ",/: string firstname) from `tab
 
-// Since drop _ only takes multiple columns, add null value to use it 
-((),`wvalue) _ sd
 
-// Using delete
-delete wvalue from sd
+// f) Split a column into two (dear & name)
+// q)
+// dear name
+// ---------
+// Dear John
+// Dear Jia
+// Dear Jai
+// Dear Jac
 
-// Using amend
-.[sd;(); ((),`wvalue) _]
+
+// ans:
+// Using select
+select dear:"S"$4#'Dear, name:"S"$5_'Dear from tab
+
+// Using exec
+flip exec `dear`name!"SS"$(5#;4_)@/:\: Dear from tab
+flip exec `dear`name!"SS"$(#[5];_[4])@/:\: Dear from tab
