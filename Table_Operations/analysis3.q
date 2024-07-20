@@ -31,11 +31,11 @@ update res:(dict[func]).'[d1;d2] from t
 // since we are applying each column values need to use flip to make d1 & d2 into lists
 update res:(dict[func]).' flip (d1;d2) from t
 
-b) Add2 & add to cols d1 & d2, try using function below and notation
+// b) Add2 & add to cols d1 & d2, try using function below and notation
 q)add2:{x+2}; add:{$[x>10;x+2;x+3]}; dcols:`d1`d2
 
 
-ans:
+// ans:
 q)t[dcols]:add2 t[dcols]
 
 // Using amend
@@ -46,7 +46,7 @@ q)@[t;dcols;add2]
 q)(add'') t[dcols]
 
 
-c) Chage the table like the below
+// c) Chage the table like the below
 func    | d1    d2
 --------| --------------
 add     | 1 3 4 10 30 40
@@ -57,7 +57,7 @@ ans:
 q)select d1,d2 by func from t
 
 
-d) Change columns names from `d1`d2 -> `price`size
+// d) Change columns names from `d1`d2 -> `price`size
 
 
 ans:
@@ -67,7 +67,7 @@ q)t:`price`size xcol t
 
 
 
-e) Get accumulating weighted-average prices by func from a table, meaning taking account of not just the previous record but all previous records.
+// e) Get accumulating weighted-average prices by func from a table, meaning taking account of not just the previous record but all previous records.
 
 q)
 price size func     avgPrice
@@ -84,7 +84,7 @@ ans:
 q)update avgPrice:(sums price*size)%sums price by func from t
 
 
-f) Combine multiple columns values into one column in kdb
+// f) Combine multiple columns values into one column in kdb
 q)ccols:`price`size`func
 
 price size func     all_bid
@@ -96,7 +96,7 @@ price size func     all_bid
 7     52   multiply 7 52 `multiply
 
 
-ans:
+// ans:
 // t[ccols] will give you a list so flip this to make it the same length
 q)update all_bid: flip t[ccols] from t
 

@@ -214,7 +214,7 @@ q)Fib:{x,sum -2#x}/[{10> count x};0 1]
 q)Pas:{(+':) x,0}\[{10> count x};1]
 
 
-b)Change solution to terminate when a value of greater than 100 is reached
+// b)Change solution to terminate when a value of greater than 100 is reached
 
 // ans:
 q)Pas:{(+)prior x,0}\ [{all 100>x};1]
@@ -226,7 +226,6 @@ q)Fib:{x, sum -2#x}\[{100>max x};0 1]
 
 // ans:
 q)fact:{1 */ 1+til x}
-K code:
 q){1*/1+!x}
 
 
@@ -734,7 +733,8 @@ q)(!)./:(((1 2);(`a`b));((`c`d);(3 4)))
 //Without Header
 ("DSFS* ";csv) 0: path/file.csv 
 
-// b) How would you parse this if it was too big to hold in memory? Store in a file called `:newfile using dictionary method
+// b) How would you parse this if it was too big to hold in memory? Store in a file called 
+// `:newfile using dictionary method
 
 
 
@@ -799,9 +799,6 @@ func:{
 // Use greedy algorithm
 
 splitToHomogeneousGroups: { 
-    / Sort the vector in descending order
-    sortedVector: reverse asc x;
-    
     / Initialize 4 groups; Initialize sums for each group
     groups:: (();();();()); sumGroup:: 0 0 0 0;
     
@@ -1020,61 +1017,5 @@ sku color  price size_s size_l size_xl
 ohenc:{d:distinct v:x y; ((),y) _ x,'flip (`$(string[y],"_"),/:string d)!d=\:v}
 
 
-// 64.
-// Define a function 'stt' that takes in a list or table and a test set ratio, splits the data into two lists/tables based on the test set ratio, and returns a two item list with the first item representing the training set and the second item representing the test set.
-
-q)show t:([]s:100?`AAPL`MSFT`IBM`TSLA;p:100?400)
-s    p
---------
-AAPL 372
-AAPL 326
-TSLA 329
-IBM  330
-TSLA 50
-..
-q)s:stt[t;.2]
-q)s
-+`s`p!(`AAPL`AAPL`TSLA`IBM`IBM`IBM`AAPL`TSLA`TSLA`IBM`MSFT`TSLA`AAPL`AAPL`IBM`IBM`TSLA`IBM`MSFT`TSLA`MSFT`TSLA`AAPL`IBM`AAPL`MSFT`AAPL`IBM`AAPL`AAPL`IBM`MSFT`TSLA`TSLA`AAPL`AAPL`TSLA`MSFT`MSFT`TSLA..
-+`s`p!(`AAPL`TSLA`MSFT`IBM`MSFT`TSLA`MSFT`IBM`MSFT`MSFT`MSFT`TSLA`IBM`MSFT`TSLA`TSLA`IBM`TSLA`MSFT`AAPL;213 50 58 97 232 152 67 351 25 323 13 263 224 29 2 383 114 187 137 393)
-q)count s[0]
-80
-q)count s[1]
-20
-q)stt[`a`b`c`d`e`f`g;.2]
-`a`b`c`d`f`g
-,`e
-
-// ans:
-q)f:{var1:?[neg(`long$y * count x);x]; var2:x except var1;(var1;var2)}
-
-
-// 65. 
-// Write a function that returns a vector containing, for each item of x, that number of copies of its index.
-// This should also returns a list of keys repeated as many times as the corresponding value for a dictionary
-
-q)f 2 3 0 1
-0 0 1 1 1 3
-
-q)d:`amr`ibm`msft!2 3 1
-q)where d
-`amr`amr`ibm`ibm`ibm`msft
-
-
-// ans:
-f:{where x}
-
-
-// 66.
-// Write a function that returns for each item in x the index of where it would occur in the sorted list or dictionary.
-
-
-q)f 2 7 3 2 5
-0 4 2 1 3
-// if 2 7 3 2 5 is sorted, what is the index that is going to revert sorted list back into original list?
-
-
-// ans:
-f:{rank x}
-f:(iasc iasc x)
 
 

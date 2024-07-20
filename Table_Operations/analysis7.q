@@ -10,11 +10,7 @@ dfd:.Q.fs[{("dstffff";enlist",")0:x}] hsym `$getenv[`AX_WORKSPACE],"/Data/quote.
 ("dstff";enlist",") 0:hsym `$getenv[`AX_WORKSPACE],"/Data/trade.csv"
 
 
-// Calculate moving averages
-shortMA: mavg[5; trade`price]
-longMA: mavg[20; trade`price]
-
-// Generate buy/sell signals
+// Generate buy/sell signals by using moving averages
 signals:select from (update shortMA:mavg[5; price], longMA:mavg[20; price] from trade) where shortMA > longMA
 // Masking using vector conditional, much more efficient as everything is done via vector
 signals: update signal:({?[0=x;-1;x]} (>':) price) from signals

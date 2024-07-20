@@ -60,8 +60,8 @@ bdd:{[Trade;FillQty;Price;Position]
         if[`Overnight~Trade[ct-1];fdd,:fdd[ct-1]+Price[ct]*(Position[ct]-Position[ct-1])];
         if[(Trade[ct-1] in `Buy`Sell)&(not Trade[ct]~Trade[ct-1]);fdd,:fdd[ct-1]];
         if[(Trade[ct]~Trade[ct-1])&((0<Position[ct-1])&(0>Position[ct]));fdd,:Price[ct]*Position[ct]];
-        if[(`Sell~Trade[ct]) and (Trade[ct]~Trade[ct-1]) and ((0>Position[ct-1]) and (0>Position[ct])) and (not 0~Position[ct]);
-            fdd,:fdd[ct-1]+ -1 * Price[ct]*FillQty[ct]];
+//         if[(`Sell~Trade[ct]) and (Trade[ct]~Trade[ct-1]) and ((0>Position[ct-1]) and (0>Position[ct])) and (not 0~Position[ct]);
+//             fdd,:fdd[ct-1]+ -1 * Price[ct]*FillQty[ct]];
 //         if[-700~Position[ct];
 //             fdd,:fdd[ct-1]+ -1 * Price[ct]*FillQty[ct]];
         if[0~Position[ct];fdd,:0f];
@@ -74,6 +74,29 @@ bdd:{[Trade;FillQty;Price;Position]
 bdd[fd[0];fd[1];fd[2];fd[3]]
 fdd
 example
+
+dict:(`Buy`Sell)!(-1*;*)
+
+example2:update overnightCol:Position*Price from example1 where Trade=`Overnight
+example2:update overnightCol:Price*FillQty from example2 where prev Trade=`Overnight
+example2:update overnightCol:sums overnightCol from example2 where overnightCol <> 0n
+example2:update overnightCol:(prev overnightCol) from example2 where prev Trade in (`Buy`Sell), Trade <> prev Trade
+example2:update overnightCol:Position*Price from example2 where overnightCol = 0n, Trade = prev Trade, 0>Position*prev Position
+
+example2:update overnightCol:neg(FillQty*Price) from example2 where overnightCol = 0n, Trade = prev Trade
+
+update sumsovernightcol:overnightCol from example2 where overnightCol <> 0n, Trade = prev Trade
+
+
+update sumsovernightcol:90f from example2 where overnightCol <> 0n, Trade = prev Trade
+
+example2:update overnightCol:0f from example2 where Position=0f
+example2:fills example2
+
+neg 9
+
+
+example2[`Trade] in (`Buy`Sell)
 
 
 q)r:1 1
